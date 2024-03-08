@@ -1,0 +1,18 @@
+---
+- name: Set GitLab admin credentials
+  hosts: host-gl
+  become: yes
+  vars:
+    gitlab_admin_username: "admin"  # Замените на желаемое имя пользователя
+    gitlab_admin_password: "$izeGL500MB!!34_99_Mem0ry"  # Замените на желаемый пароль
+
+  tasks:
+    - name: Set GitLab admin credentials via API
+      uri:
+        url: "http://localhost/api/v4/users"
+        method: POST
+        user: "{{ gitlab_admin_username }}"
+        password: "{{ gitlab_admin_password }}"
+        body: "email=admin@example.com&password={{ gitlab_admin_password }}&username={{ gitlab_admin_username }}"
+        status_code: 201
+        body_format: form-urlencoded

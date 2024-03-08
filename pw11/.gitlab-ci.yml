@@ -1,0 +1,55 @@
+stages:
+  - build-docker-img
+  - test
+  - notify
+  - cleanup
+
+
+variables:
+  DOCKER_TLS_CERTDIR: ""
+  IMAGE_NAME: $CI_PROJECT_NAME:$CI_COMMIT_SHORT_SHA
+
+services:
+  - docker:dind
+
+build-docker-img:
+  stage: build-docker-img
+  script:
+    - docker build -t $IMAGE_NAME -f Dockerfile .
+
+test:
+  stage: test
+  script:
+    - |
+        docker run -d -p 9889:80 $IMAGE_NAME
+        sleep 20  # Подождем некоторое время, чтобы Nginx успел стартовать
+        RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9889)
+        echo "HTTP Response Code: $RESPONSE"
+        test $RESPONSE -eq 200 || (echo "HTTP Response Code is not 200" && exit 1)
+        LOCAL_MD5=$(md5sum index.html | awk '{print $1}')
+        REMOTE_MD5=$(curl -s http://localhost:9889/index.html | md5sum | awk '{print $1}')
+        echo "Local MD5: $LOCAL_MD5"
+        echo "Remote MD5: $REMOTE_MD5"
+        test "$LOCAL_MD5" = "$REMOTE_MD5" || (echo "MD5 sum mismatch" && exit 1)
+  only:
+    changes:
+      - index.html
+
+
+notify:
+  stage: notify
+  script:
+    - sh ci-notify.sh
+  # script:
+  #   - | 
+  #     echo "CI Pipeline Failed: $CI_PIPELINE_URL" | mail -s "CI Pipeline Failed" uncleloushouse@gmail.com
+  when: on_failure
+
+cleanup:
+  stage: cleanup
+  script:
+    # Удаление контейнера
+    # - docker stop $IMAGE_NAME
+    # - docker ps -a | grep "pw11" | awk '{print $3}' | xargs docker rmi
+    - docker stop $(docker ps -a -q)
+    - docker rm $(docker ps -a -q)

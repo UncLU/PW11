@@ -1,0 +1,47 @@
+---
+- name: Install GitLab on Ubuntu
+  hosts: host-gl
+  become: yes
+
+  tasks:
+    - name: Update and upgrade apt packages
+      apt:
+        update_cache: yes
+
+
+    - name: Install dependencies
+      apt:
+        name:
+          - curl
+          - openssh-server
+          - ca-certificates
+          - tzdata
+          - perl
+          - postfix
+        state: present
+
+    - name: Import GitLab GPG key
+      shell: curl https://packages.gitlab.com/gpg.key | apt-key add -
+      register: import_key_result
+      ignore_errors: yes
+
+    - name: Add GitLab repository and install GitLab package
+      apt_repository:
+        repo: "deb https://packages.gitlab.com/gitlab/gitlab-ce/ubuntu/ focal main"
+        state: present
+        validate_certs: no
+      when: import_key_result.rc == 0
+      notify: Reconfigure GitLab
+
+    - name: Install GitLab package
+      apt:
+        name: gitlab-ce
+        state: present
+
+    - name: Reconfigure GitLab
+      command: /opt/gitlab/bin/gitlab-ctl reconfigure
+      when: import_key_result.rc == 0
+
+  handlers:
+    - name: Reconfigure GitLab
+      command: /opt/gitlab/bin/gitlab-ctl reconfigure
